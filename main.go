@@ -171,7 +171,7 @@ func handleInfo() {
 		fmt.Println("Error reading info file:", err)
 	}
 
-	fmt.Println("Contents of info file:\n", string(infoContents))
+	fmt.Println(string(infoContents))
 
 }
 
