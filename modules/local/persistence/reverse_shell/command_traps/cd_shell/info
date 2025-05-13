@@ -1,1 +1,3 @@
 Hooks a reverse shell from the local machine to RHOST along RPORT.
+
+Injects into /etc/bash.bashrc and wraps the 'cd' command in a reverse shell so when the command is run, it then establishes a shell.
