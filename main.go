@@ -1,63 +1,93 @@
 package main
 
 import (
-	"bufio"   // Read input line by line
-	"fmt"     // Printing to terminal
+	// Read input line by line
+	"fmt" // Printing to terminal
+	"io"
 	"os"      // Access to stdin and exit
 	"strings" // Parsing input
 
 	"io/fs"
 	"path/filepath"
+
+	"github.com/chzyer/readline"
 )
+
+// Global functions
+var currentModule string
 
 func main() {
 
 	fmt.Println("Welcome to Ludicro_Armory. Type 'help' to get started.")
 
-	// Create a reader to get input
-	reader := bufio.NewReader(os.Stdin)
+	// Build autocompleter from known modules
+	modules, err := getAvailableModules()
+	if err != nil {
+		fmt.Println("Failed to load modules:", err)
+		return
+	}
 
-	// Input loop to run until user enters 'exit'
+	// Wrap each module as 'use <module>' for autocomplete suggestion
+	var moduleSuggestions []readline.PrefixCompleterInterface
+	for _, m := range modules {
+		moduleSuggestions = append(moduleSuggestions, readline.PcItem(m))
+	}
+
+	// Root completer
+	completer := readline.NewPrefixCompleter(
+		readline.PcItem("help"),
+		readline.PcItem("exit"),
+		readline.PcItem("modules"),
+		readline.PcItem("use", moduleSuggestions...),
+	)
+
+	// Initialize the readline instance with completer
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          "[LudicroArmory] > ",
+		AutoComplete:    completer,
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer rl.Close()
+
+	// Main loop
+
 	for {
-		fmt.Print("[LudicroArmory] > ") // Prompt
-
-		// Read input until user hits Enter
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("Error reading input:", err)
+		line, err := rl.Readline()
+		if err == readline.ErrInterrupt {
 			continue
+		} else if err == io.EOF {
+			break
 		}
 
-		// Trim input
-		input = strings.TrimSpace(input)
-
-		// If user types nothing, skip
+		// Trim empty spaces
+		input := strings.TrimSpace(line)
 		if input == "" {
 			continue
 		}
 
-		// Split input
-		// 1st word is command
-		// nth words are arguments
+		// Break up inputs into commands and arguments
 		parts := strings.Fields(input)
 		command := parts[0]
 		args := parts[1:]
 
-		// Handle known commands
 		switch command {
 		case "help":
 			handleHelp()
 		case "use":
 			handleUse(args)
 		case "modules":
-			modules, err := getAvailableModules()
+			mods, err := getAvailableModules()
 			if err != nil {
 				fmt.Println("Error:", err)
 				break
 			}
 			fmt.Println("Available modules:")
-			for _, m := range modules {
-				fmt.Println("   ", m)
+			for _, m := range mods {
+				fmt.Println("  ", m)
 			}
 		case "exit":
 			fmt.Println("Exiting LudicroArmory...")
@@ -66,12 +96,12 @@ func main() {
 			fmt.Println("Unknown command:", command)
 		}
 	}
-
 }
 
 func handleHelp() {
 	fmt.Println("Available commands:")
 	fmt.Println("  use <module>   Load a module")
+	fmt.Println("  modules        Display available modules")
 	fmt.Println("  help           Show this help message")
 	fmt.Println("  exit           Exit the shell")
 }
@@ -81,9 +111,34 @@ func handleUse(args []string) {
 		fmt.Println("Usage: use <module>")
 		return
 	}
-	moduleName := args[0]
-	fmt.Printf("Using module: %s\n", moduleName)
-	// Later we'll load the actual module here
+	requested := args[0]
+
+	// Get available modules
+	available, err := getAvailableModules()
+	if err != nil {
+		fmt.Println("Error reading modules:", err)
+		return
+	}
+
+	// Check if requested module is valid
+	valid := false
+	for _, mod := range available {
+		if mod == requested {
+			valid = true
+			break
+		}
+	}
+
+	if !valid {
+		fmt.Printf("Module '%s' not found.\n", requested)
+		fmt.Println("Use the 'modules' command to list available modules.")
+		return
+	}
+
+	// Save selected module
+	currentModule = requested
+	fmt.Printf("Using module: %s\n", currentModule)
+
 }
 
 // Recursively finds paths for available modules
