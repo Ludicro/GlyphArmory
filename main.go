@@ -4,7 +4,8 @@ import (
 	// Read input line by line
 	"fmt" // Printing to terminal
 	"io"
-	"os"      // Access to stdin and exit
+	"os" // Access to stdin and exit
+	"os/exec"
 	"strings" // Parsing input
 
 	"io/fs"
@@ -39,6 +40,7 @@ func main() {
 		readline.PcItem("use", moduleSuggestions...),
 		readline.PcItem("modules"),
 		readline.PcItem("info"),
+		readline.PcItem("run"),
 		readline.PcItem("return"),
 		readline.PcItem("help"),
 		readline.PcItem("exit"),
@@ -96,6 +98,8 @@ func main() {
 			}
 		case "info":
 			handleInfo()
+		case "run":
+			handleRun()
 		case "return":
 			handleReturn()
 		case "help":
@@ -117,6 +121,7 @@ func handleHelp() {
 	fmt.Println("  use <module>   Load a module")
 	fmt.Println("  modules        Display available modules")
 	fmt.Println("  info           Displays information on currently selected module")
+	fmt.Println("  run            Deploys the selected script")
 	fmt.Println("  return         Clear the selected module")
 	fmt.Println("  help           Show this help message")
 	fmt.Println("  exit           Exit the shell")
@@ -164,7 +169,7 @@ func handleInfo() {
 		return
 	}
 
-	infoPath := filepath.Join("modules/", currentModule, "info")
+	infoPath := filepath.Join("modules", currentModule, "info")
 
 	infoContents, err := os.ReadFile(infoPath)
 	if err != nil {
@@ -172,6 +177,39 @@ func handleInfo() {
 	}
 
 	fmt.Println(string(infoContents))
+
+}
+
+// Executes the payload from the module
+func handleRun() {
+	if currentModule == "" {
+		fmt.Println("No module selected.")
+		return
+	}
+
+	payloadPath := filepath.Join("modules", currentModule, "run.sh")
+
+	// Make sure file exists
+	if _, err := os.Stat(payloadPath); os.IsNotExist(err) {
+		fmt.Printf("No 'run.sh' script found for module: %s\n", currentModule)
+		return
+	}
+
+	// Create the command (can be .sh, binary, or anything executable)
+	cmd := exec.Command(payloadPath)
+
+	// Attach terminal output (so we see stdout and stderr)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Optional: attach stdin too, if the script needs it
+	cmd.Stdin = os.Stdin
+
+	// Run it
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println("Error executing run script:", err)
+	}
 
 }
 
