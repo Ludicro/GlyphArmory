@@ -38,6 +38,7 @@ func main() {
 	completer := readline.NewPrefixCompleter(
 		readline.PcItem("use", moduleSuggestions...),
 		readline.PcItem("modules"),
+		readline.PcItem("info"),
 		readline.PcItem("return"),
 		readline.PcItem("help"),
 		readline.PcItem("exit"),
@@ -81,8 +82,6 @@ func main() {
 
 		// Handle the command used
 		switch command {
-		case "help":
-			handleHelp()
 		case "use":
 			handleUse(args)
 		case "modules":
@@ -95,8 +94,12 @@ func main() {
 			for _, m := range mods {
 				fmt.Println("  ", m)
 			}
+		case "info":
+			handleInfo()
 		case "return":
 			handleReturn()
+		case "help":
+			handleHelp()
 		case "exit":
 			fmt.Println("Exiting LudicroArmory...")
 			os.Exit(0)
@@ -108,15 +111,18 @@ func main() {
 
 // === Console Command Functions ===
 
+// Prints the help statements
 func handleHelp() {
 	fmt.Println("Available commands:")
 	fmt.Println("  use <module>   Load a module")
 	fmt.Println("  modules        Display available modules")
+	fmt.Println("  info           Displays information on currently selected module")
 	fmt.Println("  return         Clear the selected module")
 	fmt.Println("  help           Show this help message")
 	fmt.Println("  exit           Exit the shell")
 }
 
+// Sets the module to be used
 func handleUse(args []string) {
 	if len(args) == 0 {
 		fmt.Println("Usage: use <module>")
@@ -151,6 +157,24 @@ func handleUse(args []string) {
 	currentModule = requested
 }
 
+// Displays info from module's info file
+func handleInfo() {
+	if currentModule == "" {
+		fmt.Println("No module selected.")
+		return
+	}
+
+	infoPath := filepath.Join("modules/", currentModule, "info")
+
+	infoContents, err := os.ReadFile(infoPath)
+	if err != nil {
+		fmt.Println("Error reading info file:", err)
+	}
+
+	fmt.Println("Contents of info file:\n", string(infoContents))
+
+}
+
 // Resets the currentModule
 func handleReturn() {
 	currentModule = ""
@@ -163,17 +187,23 @@ func getAvailableModules() ([]string, error) {
 	var modules []string
 
 	// Recursively get modules and directories
-	err := filepath.WalkDir("modules", func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir("modules", func(path string, directory fs.DirEntry, err error) error {
 		if err != nil {
 			return err // Skip unreadable
 		}
 
-		// Currently only look for go files
-		if !d.IsDir() && filepath.Ext(path) == ".go" {
-			// Strip "modules/" and ".go" from the path
-			trimmed := strings.TrimPrefix(path, "modules/")
-			trimmed = strings.TrimSuffix(trimmed, ".go")
-			modules = append(modules, trimmed)
+		// Currently directories
+		if directory.IsDir() {
+
+			// Check if it contains an info file
+			infoPath := filepath.Join(path, "info")
+
+			if fileExists(infoPath) {
+				// Strip "modules/"
+				trimmed := strings.TrimPrefix(path, "modules/")
+				modules = append(modules, trimmed)
+			}
+
 		}
 		return nil
 	})
@@ -186,9 +216,19 @@ func getAvailableModules() ([]string, error) {
 
 }
 
+// Sets the terminal prompt depending on the current module
+// Returns the prompt
 func buildPrompt() string {
 	if currentModule != "" {
 		return fmt.Sprintf("[LudicroArmory] (%s) > ", currentModule)
 	}
 	return "[LudicroArmory] > "
+}
+
+// Verifies a file exists when given the path
+// Returns true if file is found
+// Returns false if file is NOT found
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
