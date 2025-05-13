@@ -14,8 +14,9 @@ import (
 	"github.com/chzyer/readline"
 )
 
-// Global functions
+// Global variables
 var currentModule string
+var moduleConfigs = make(map[string]map[string]string)
 
 func main() {
 
@@ -41,6 +42,8 @@ func main() {
 		readline.PcItem("modules"),
 		readline.PcItem("info"),
 		readline.PcItem("run"),
+		readline.PcItem("set"),
+		readline.PcItem("show"),
 		readline.PcItem("return"),
 		readline.PcItem("help"),
 		readline.PcItem("exit"),
@@ -100,6 +103,10 @@ func main() {
 			handleInfo()
 		case "run":
 			handleRun()
+		case "set":
+			handleSet(args)
+		case "show":
+			handleShow()
 		case "return":
 			handleReturn()
 		case "help":
@@ -118,13 +125,15 @@ func main() {
 // Prints the help statements
 func handleHelp() {
 	fmt.Println("Available commands:")
-	fmt.Println("  use <module>   Load a module")
-	fmt.Println("  modules        Display available modules")
-	fmt.Println("  info           Displays information on currently selected module")
-	fmt.Println("  run            Deploys the selected script")
-	fmt.Println("  return         Clear the selected module")
-	fmt.Println("  help           Show this help message")
-	fmt.Println("  exit           Exit the shell")
+	fmt.Println("  use <module>   		 Load a module")
+	fmt.Println("  modules        		 Displays available modules")
+	fmt.Println("  info           		 Displays information on currently selected module")
+	fmt.Println("  run            		 Deploys the selected script")
+	fmt.Println("  set <key> <value>     Sets a config option")
+	fmt.Println("  show           		 Displays current config")
+	fmt.Println("  return         		 Clear the selected module")
+	fmt.Println("  help           		 Show this help message")
+	fmt.Println("  exit           		 Exit the shell")
 }
 
 // Sets the module to be used
@@ -198,12 +207,19 @@ func handleRun() {
 	// Create the command (can be .sh, binary, or anything executable)
 	cmd := exec.Command(payloadPath)
 
-	// Attach terminal output (so we see stdout and stderr)
+	// Attach terminal input/output
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
-	// Optional: attach stdin too, if the script needs it
 	cmd.Stdin = os.Stdin
+
+	// Inject module-specific config values as environment variables
+	env := os.Environ() // start with existing environment
+	if config, exists := moduleConfigs[currentModule]; exists {
+		for key, value := range config {
+			env = append(env, fmt.Sprintf("%s=%s", key, value))
+		}
+	}
+	cmd.Env = env
 
 	// Run it
 	err := cmd.Run()
@@ -211,6 +227,102 @@ func handleRun() {
 		fmt.Println("Error executing run script:", err)
 	}
 
+}
+
+// Sets a config option
+func handleSet(args []string) {
+	if currentModule == "" {
+		fmt.Println("No module selected.")
+		return
+	}
+
+	if len(args) != 2 {
+		fmt.Println("Usage: set <key> <value>")
+		return
+	}
+
+	key := args[0]                       // First argument is the key
+	value := strings.Join(args[1:], " ") // Joins the rest in case and sets them as the value
+
+	// Init config map for the module if it doesn't exist
+	if _, exists := moduleConfigs[currentModule]; !exists {
+		moduleConfigs[currentModule] = make(map[string]string)
+	}
+
+	moduleConfigs[currentModule][key] = value
+	fmt.Printf("[*] Set %s = %s for module %s\n", key, value, currentModule)
+
+}
+
+// Displays config options
+func handleShow() {
+	if currentModule == "" {
+		fmt.Println("No module selected.")
+		return
+	}
+
+	// Read expected config keys (if available)
+	configPath := filepath.Join("modules", currentModule, "config")
+	expected := make(map[string]string)
+
+	// If the config file exists
+	if fileExists(configPath) {
+		rawContent, err := os.ReadFile(configPath) // Read the file
+		// If file read with no issues
+		if err == nil {
+			// Breaks newlines into seperate lists and loop through the number of lines
+			for _, rawLine := range strings.Split(string(rawContent), "\n") {
+
+				line := strings.TrimSpace(rawLine) // Remove white spaces from the current line
+
+				// If the line had content, continue
+				if line == "" {
+					continue
+				}
+
+				// Split into key:description
+				parts := strings.SplitN(line, ":", 2)
+				key := strings.TrimSpace(parts[1])
+				desc := ""
+
+				// If there was a description provided, set it as the value of desc
+				if len(parts) > 1 {
+					desc = strings.TrimSpace(parts[1])
+				}
+
+				// Assign key with description
+				expected[key] = desc
+
+			}
+		}
+	}
+
+	// Pull current config from memory
+	current := moduleConfigs[currentModule]
+
+	// If there is no config maps
+	if len(expected) == 0 && len(current) == 0 {
+		fmt.Println("No config information found for this module.")
+		return
+	}
+
+	// Header for options tables
+	fmt.Printf("Config for module: %s\n", currentModule)
+	fmt.Println("Name      Current Value     Description")
+	fmt.Println("--------  ----------------  -------------------------")
+
+	// Show expected + current config
+	for key, desc := range expected {
+		value := current[key]
+		fmt.Printf("%-10s %-16s %-s\n", key, value, desc)
+	}
+
+	// Show extra keys not in expected (in case user sets custom ones)
+	for key, value := range current {
+		if _, found := expected[key]; !found {
+			fmt.Printf("%-10s %-16s (custom key)\n", key, value)
+		}
+	}
 }
 
 // Resets the currentModule
