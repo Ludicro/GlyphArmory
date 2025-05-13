@@ -18,7 +18,7 @@ var currentModule string
 
 func main() {
 
-	fmt.Println("Welcome to Ludicro_Armory. Type 'help' to get started.")
+	fmt.Println("Welcome to Ludicro_Armory. Type 'help' to get started or 'exit' to quit.")
 
 	// Build autocompleter from known modules
 	modules, err := getAvailableModules()
@@ -34,11 +34,13 @@ func main() {
 	}
 
 	// Root completer
+	// Uses readline to autocomplete available commands across the entire tool
 	completer := readline.NewPrefixCompleter(
+		readline.PcItem("use", moduleSuggestions...),
+		readline.PcItem("modules"),
+		readline.PcItem("return"),
 		readline.PcItem("help"),
 		readline.PcItem("exit"),
-		readline.PcItem("modules"),
-		readline.PcItem("use", moduleSuggestions...),
 	)
 
 	// Initialize the readline instance with completer
@@ -56,6 +58,9 @@ func main() {
 	// Main loop
 
 	for {
+		rl.SetPrompt(buildPrompt()) //Dynamically set the prompt to include the module
+
+		// Read the line in the terminal and save it
 		line, err := rl.Readline()
 		if err == readline.ErrInterrupt {
 			continue
@@ -74,6 +79,7 @@ func main() {
 		command := parts[0]
 		args := parts[1:]
 
+		// Handle the command used
 		switch command {
 		case "help":
 			handleHelp()
@@ -89,6 +95,8 @@ func main() {
 			for _, m := range mods {
 				fmt.Println("  ", m)
 			}
+		case "return":
+			handleReturn()
 		case "exit":
 			fmt.Println("Exiting LudicroArmory...")
 			os.Exit(0)
@@ -98,10 +106,13 @@ func main() {
 	}
 }
 
+// === Console Command Functions ===
+
 func handleHelp() {
 	fmt.Println("Available commands:")
 	fmt.Println("  use <module>   Load a module")
 	fmt.Println("  modules        Display available modules")
+	fmt.Println("  return         Clear the selected module")
 	fmt.Println("  help           Show this help message")
 	fmt.Println("  exit           Exit the shell")
 }
@@ -122,6 +133,7 @@ func handleUse(args []string) {
 
 	// Check if requested module is valid
 	valid := false
+	// Cycle through all the available modules to make sure the selection is valid
 	for _, mod := range available {
 		if mod == requested {
 			valid = true
@@ -137,9 +149,14 @@ func handleUse(args []string) {
 
 	// Save selected module
 	currentModule = requested
-	fmt.Printf("Using module: %s\n", currentModule)
-
 }
+
+// Resets the currentModule
+func handleReturn() {
+	currentModule = ""
+}
+
+// === Utility Functions ===
 
 // Recursively finds paths for available modules
 func getAvailableModules() ([]string, error) {
@@ -167,4 +184,11 @@ func getAvailableModules() ([]string, error) {
 
 	return modules, nil
 
+}
+
+func buildPrompt() string {
+	if currentModule != "" {
+		return fmt.Sprintf("[LudicroArmory] (%s) > ", currentModule)
+	}
+	return "[LudicroArmory] > "
 }
