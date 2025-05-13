@@ -18,6 +18,11 @@ import (
 var currentModule string
 var moduleConfigs = make(map[string]map[string]string)
 
+type ConfigEntry struct {
+	Default     string
+	Description string
+}
+
 func main() {
 
 	fmt.Println("Welcome to Ludicro_Armory. Type 'help' to get started or 'exit' to quit.")
@@ -204,54 +209,74 @@ func handleRun() {
 		return
 	}
 
-	// Create the command (can be .sh, binary, or anything executable)
-	cmd := exec.Command(payloadPath)
+	// Load config
+	configPath := filepath.Join("modules", currentModule, "config")
+	expected, _ := parseModuleConfig(configPath)
 
-	// Attach terminal input/output
+	// Build env
+	env := os.Environ()
+
+	// Get current config values for module
+	current := moduleConfigs[currentModule]
+
+	// Inject each expected variable
+	// Inject each expected variable
+	for key, entry := range expected {
+		val := current[key]
+		if val == "" {
+			val = entry.Default
+		}
+		env = append(env, fmt.Sprintf("%s=%s", key, val))
+	}
+
+	// Add any custom (unexpected) keys
+	for key, val := range current {
+		if _, found := expected[key]; !found {
+			env = append(env, fmt.Sprintf("%s=%s", key, val))
+		}
+	}
+
+	// Set up the command to run
+	cmd := exec.Command(payloadPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+	cmd.Env = env // inject the final env
 
-	// Inject module-specific config values as environment variables
-	env := os.Environ() // start with existing environment
-	if config, exists := moduleConfigs[currentModule]; exists {
-		for key, value := range config {
-			env = append(env, fmt.Sprintf("%s=%s", key, value))
-		}
-	}
-	cmd.Env = env
-
-	// Run it
+	// Execute it
 	err := cmd.Run()
 	if err != nil {
-		fmt.Println("Error executing run script:", err)
+		fmt.Println("Error running module:", err)
 	}
 
 }
 
 // Sets a config option
 func handleSet(args []string) {
+
+	// Ensure a module is selected
 	if currentModule == "" {
 		fmt.Println("No module selected.")
 		return
 	}
 
+	// Must provide a key and value
 	if len(args) != 2 {
 		fmt.Println("Usage: set <key> <value>")
 		return
 	}
 
 	key := args[0]                       // First argument is the key
-	value := strings.Join(args[1:], " ") // Joins the rest in case and sets them as the value
+	value := strings.Join(args[1:], " ") // Joins the rest in case of spaces and sets them as the value
 
 	// Init config map for the module if it doesn't exist
 	if _, exists := moduleConfigs[currentModule]; !exists {
 		moduleConfigs[currentModule] = make(map[string]string)
 	}
 
+	// Store the key-value in the current module's config map
 	moduleConfigs[currentModule][key] = value
 	fmt.Printf("[*] Set %s = %s for module %s\n", key, value, currentModule)
-
 }
 
 // Displays config options
@@ -261,66 +286,78 @@ func handleShow() {
 		return
 	}
 
-	// Read expected config keys (if available)
+	// Determine path to config file
 	configPath := filepath.Join("modules", currentModule, "config")
-	expected := make(map[string]string)
 
-	// If the config file exists
-	if fileExists(configPath) {
-		rawContent, err := os.ReadFile(configPath) // Read the file
-		// If file read with no issues
-		if err == nil {
-			// Breaks newlines into seperate lists and loop through the number of lines
-			for _, rawLine := range strings.Split(string(rawContent), "\n") {
+	// Parse the config file to get expected keys, defaults, and descriptions
+	expected, orderedKeys := parseModuleConfig(configPath)
 
-				line := strings.TrimSpace(rawLine) // Remove white spaces from the current line
-
-				// If the line had content, continue
-				if line == "" {
-					continue
-				}
-
-				// Split into key:description
-				parts := strings.SplitN(line, ":", 2)
-				key := strings.TrimSpace(parts[1])
-				desc := ""
-
-				// If there was a description provided, set it as the value of desc
-				if len(parts) > 1 {
-					desc = strings.TrimSpace(parts[1])
-				}
-
-				// Assign key with description
-				expected[key] = desc
-
-			}
-		}
-	}
-
-	// Pull current config from memory
+	// Get any current values set by the user for this module
 	current := moduleConfigs[currentModule]
 
-	// If there is no config maps
+	// Exit early if there's nothing to show
 	if len(expected) == 0 && len(current) == 0 {
 		fmt.Println("No config information found for this module.")
 		return
 	}
 
-	// Header for options tables
-	fmt.Printf("Config for module: %s\n", currentModule)
-	fmt.Println("Name      Current Value     Description")
-	fmt.Println("--------  ----------------  -------------------------")
+	// Get column widths
+	maxKeyLen := len("Name")
+	maxValLen := len("Current Value")
+	maxDefLen := len("Default")
 
-	// Show expected + current config
-	for key, desc := range expected {
-		value := current[key]
-		fmt.Printf("%-10s %-16s %-s\n", key, value, desc)
+	for _, key := range orderedKeys {
+		entry := expected[key]
+		val := current[key]
+		if val == "" {
+			val = "(default)"
+		}
+		if len(key) > maxKeyLen {
+			maxKeyLen = len(key)
+		}
+		if len(val) > maxValLen {
+			maxValLen = len(val)
+		}
+		if len(entry.Default) > maxDefLen {
+			maxDefLen = len(entry.Default)
+		}
+	}
+	// Also check for custom keys (not in config file)
+	for key, val := range current {
+		if _, found := expected[key]; !found {
+			if len(key) > maxKeyLen {
+				maxKeyLen = len(key)
+			}
+			if len(val) > maxValLen {
+				maxValLen = len(val)
+			}
+		}
 	}
 
-	// Show extra keys not in expected (in case user sets custom ones)
-	for key, value := range current {
+	// Build format string
+	format := fmt.Sprintf("%%-%ds  %%-%ds  %%-%ds  %%s\n", maxKeyLen, maxValLen, maxDefLen)
+
+	// Print table header
+	fmt.Printf("Config for module: %s\n", currentModule)
+	fmt.Printf(format, "Name", "Current Value", "Default", "Description")
+	fmt.Printf(format, strings.Repeat("-", maxKeyLen), strings.Repeat("-", maxValLen), strings.Repeat("-", maxDefLen), strings.Repeat("-", 20))
+
+	// Show expected keys and values in order
+	for _, key := range orderedKeys {
+		entry := expected[key]
+		val := current[key]
+
+		// Show default value if no value was set
+		if val == "" {
+			val = "(default)"
+		}
+		fmt.Printf(format, key, val, entry.Default, entry.Description)
+	}
+
+	// Show any user-set keys that aren't defined in the config file
+	for key, val := range current {
 		if _, found := expected[key]; !found {
-			fmt.Printf("%-10s %-16s (custom key)\n", key, value)
+			fmt.Printf("%-*s  %-*s  %s\n", maxKeyLen, key, maxValLen, val, "(custom key)")
 		}
 	}
 }
@@ -381,4 +418,55 @@ func buildPrompt() string {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// Gets the config information from config file in module
+func parseModuleConfig(configPath string) (map[string]ConfigEntry, []string) {
+	configMap := make(map[string]ConfigEntry)
+	orderedKeys := []string{}
+
+	// Skip if file doesn't exist
+	if !fileExists(configPath) {
+		return configMap, orderedKeys
+	}
+
+	// Read raw information
+	rawContent, err := os.ReadFile(configPath)
+	if err != nil {
+		return configMap, orderedKeys
+	}
+
+	// Split each line
+	lines := strings.Split(string(rawContent), "\n")
+	// For each line
+	for _, raw := range lines {
+		line := strings.TrimSpace(raw) // Remove whitespace
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 3) // Split into key:value:desc
+
+		// Fill default value
+		key := strings.TrimSpace(parts[0])
+		defaultVal := ""
+		if len(parts) > 1 {
+			defaultVal = strings.TrimSpace(parts[1])
+		}
+
+		// Fill description
+		desc := ""
+		if len(parts) > 2 {
+			desc = strings.TrimSpace(parts[2])
+		}
+
+		// Set config map
+		configMap[key] = ConfigEntry{
+			Default:     defaultVal,
+			Description: desc,
+		}
+		orderedKeys = append(orderedKeys, key)
+	}
+
+	return configMap, orderedKeys
 }

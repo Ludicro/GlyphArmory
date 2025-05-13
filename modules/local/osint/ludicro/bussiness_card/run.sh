@@ -1,3 +1,3 @@
 #!/bin/bash
-echo "[+] Running Ludicro business card"
-echo "This is a placeholder script."
+echo "[+] Adding contact..."
+echo "[+] Contact session opened"
