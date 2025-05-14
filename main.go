@@ -16,8 +16,10 @@ import (
 )
 
 const (
+	Green  = "\033[32m"
+	Cyan   = "\033[94m"
 	Red    = "\033[31m"
-	Yellow = "\033[33m"
+	Yellow = "\033[93m"
 	Reset  = "\033[0m"
 )
 
@@ -32,7 +34,35 @@ type ConfigEntry struct {
 
 func main() {
 
-	fmt.Println("Welcome to Ludicro_Armory. Type 'help' to get started or 'exit' to quit.")
+	fmt.Println(Green + "                  zzzzzzzzzzzzzz                   ")
+	fmt.Println("              zzzzzzz        zzzzzzz              ")
+	fmt.Println("          zzzzz        zzzz        zzzzz          ")
+	fmt.Println("        zzzz         zzzzzzzz         zzzz        ")
+	fmt.Println("      zzzz           zz    zz           zzzz      ")
+	fmt.Println("     zzz     zzzzzzz zzzzzzzz zzzzzzz     zzz     ")
+	fmt.Println("    zzz    zzzz   zzz  zzzz  zzz   zzzz    zzz    ")
+	fmt.Println("   zz    zzz                          zzz    zz   ")
+	fmt.Println("  zz             zzzzzzzzzzzzzzzzz            zz  ")
+	fmt.Println(" zzz         zzzzzzz           zzzzzzz        zzz ")
+	fmt.Println(" zz        zzzz   zz    zz    zz   zzzz        zz ")
+	fmt.Println("zzz      zzzz     zz    zz    zz     zzz       zzz")
+	fmt.Println("zzz               zz    zz    zz               zzz")
+	fmt.Println("zz               zzz    zz    zzz               zz")
+	fmt.Println("zzz             zzz     zz     zzz             zzz")
+	fmt.Println("zzz           zzz       zz       zzz           zzz")
+	fmt.Println(" zz                     zz                     zz ")
+	fmt.Println(" zzz                   zzz                    zzz ")
+	fmt.Println("  zz                   zz                     zz  ")
+	fmt.Println("   zz                 zzz                    zz   ")
+	fmt.Println("    zzz              zzz                   zzz    ")
+	fmt.Println("     zzz            zzz                   zzz     ")
+	fmt.Println("      zzzz        zzz                   zzzz      ")
+	fmt.Println("        zzzz     zzz                  zzzz        ")
+	fmt.Println("          zzzzz                    zzzzz          ")
+	fmt.Println("              zzzzzzz        zzzzzzz              ")
+	fmt.Println("                  zzzzzzzzzzzzzz                  " + Reset)
+
+	fmt.Println("Welcome to Glyph Armory. Type 'help' to get started or 'exit' to quit.")
 
 	// Build autocompleter from known modules
 	modules, err := getAvailableModules()
@@ -64,7 +94,7 @@ func main() {
 
 	// Initialize the readline instance with completer
 	rl, err := readline.NewEx(&readline.Config{
-		Prompt:          "[LudicroArmory] > ",
+		Prompt:          "[GlyphArmory] > ",
 		AutoComplete:    completer,
 		InterruptPrompt: "^C",
 		EOFPrompt:       "exit",
@@ -127,7 +157,7 @@ func main() {
 		case "help":
 			handleHelp()
 		case "exit":
-			fmt.Println("Exiting LudicroArmory...")
+			fmt.Println(Yellow + "[!] Exiting GlyphArmory..." + Reset)
 			os.Exit(0)
 		default:
 			fmt.Println("Unknown command:", command)
@@ -382,7 +412,7 @@ func handleReturn() {
 func handleTree() {
 	basePath := "modules"
 	fmt.Println("Module tree:")
-	printTree(basePath, "", true)
+	printTree(basePath, "")
 }
 
 // === Utility Functions ===
@@ -425,9 +455,9 @@ func getAvailableModules() ([]string, error) {
 // Returns the prompt
 func buildPrompt() string {
 	if currentModule != "" {
-		return fmt.Sprintf("[LudicroArmory] (%s) > ", currentModule)
+		return fmt.Sprintf(Green+"[GlyphArmory] "+Cyan+"("+"%s"+") "+Green+"> "+Reset, currentModule)
 	}
-	return "[LudicroArmory] > "
+	return Green + "[GlyphArmory] > " + Reset
 }
 
 // Verifies a file exists when given the path
@@ -490,7 +520,7 @@ func parseModuleConfig(configPath string) (map[string]ConfigEntry, []string) {
 }
 
 // Prints a tree of directory recursively
-func printTree(path string, prefix string, isLast bool) {
+func printTree(path string, prefix string) {
 
 	// Get the contents of the current directory path
 	entries, err := os.ReadDir(path)
@@ -532,7 +562,7 @@ func printTree(path string, prefix string, isLast bool) {
 		}
 
 		// Recursive
-		printTree(fullPath, nextPrefix, isFinal)
+		printTree(fullPath, nextPrefix)
 
 	}
 
