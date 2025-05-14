@@ -237,7 +237,7 @@ func handleRun() {
 	}
 
 	// Set up the command to run
-	cmd := exec.Command(payloadPath)
+	cmd := exec.Command("bash", payloadPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
