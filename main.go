@@ -6,12 +6,19 @@ import (
 	"io"
 	"os" // Access to stdin and exit
 	"os/exec"
+	"sort"
 	"strings" // Parsing input
 
 	"io/fs"
 	"path/filepath"
 
 	"github.com/chzyer/readline"
+)
+
+const (
+	Red    = "\033[31m"
+	Yellow = "\033[33m"
+	Reset  = "\033[0m"
 )
 
 // Global variables
@@ -30,7 +37,7 @@ func main() {
 	// Build autocompleter from known modules
 	modules, err := getAvailableModules()
 	if err != nil {
-		fmt.Println("Failed to load modules:", err)
+		fmt.Println(Red + "[Error] Failed to load modules:" + err.Error() + Reset)
 		return
 	}
 
@@ -50,6 +57,7 @@ func main() {
 		readline.PcItem("set"),
 		readline.PcItem("show"),
 		readline.PcItem("return"),
+		readline.PcItem("tree"),
 		readline.PcItem("help"),
 		readline.PcItem("exit"),
 	)
@@ -97,7 +105,7 @@ func main() {
 		case "modules":
 			mods, err := getAvailableModules()
 			if err != nil {
-				fmt.Println("Error:", err)
+				fmt.Println(Red + "[Error]" + err.Error() + Reset)
 				break
 			}
 			fmt.Println("Available modules:")
@@ -114,6 +122,8 @@ func main() {
 			handleShow()
 		case "return":
 			handleReturn()
+		case "tree":
+			handleTree()
 		case "help":
 			handleHelp()
 		case "exit":
@@ -137,6 +147,7 @@ func handleHelp() {
 	fmt.Println("  set <key> <value>     Sets a config option")
 	fmt.Println("  show           		 Displays current config")
 	fmt.Println("  return         		 Clear the selected module")
+	fmt.Println("  tree                  Displays a tree view of all available modules")
 	fmt.Println("  help           		 Show this help message")
 	fmt.Println("  exit           		 Exit the shell")
 }
@@ -152,7 +163,7 @@ func handleUse(args []string) {
 	// Get available modules
 	available, err := getAvailableModules()
 	if err != nil {
-		fmt.Println("Error reading modules:", err)
+		fmt.Println(Red + "[Error] Error reading modules:" + err.Error() + Reset)
 		return
 	}
 
@@ -167,8 +178,8 @@ func handleUse(args []string) {
 	}
 
 	if !valid {
-		fmt.Printf("Module '%s' not found.\n", requested)
-		fmt.Println("Use the 'modules' command to list available modules.")
+		fmt.Printf(Yellow+"[!] Module '%s' not found.\n"+Reset, requested)
+		fmt.Println(Yellow + "[!] Use the 'modules' command to list available modules." + Reset)
 		return
 	}
 
@@ -179,7 +190,7 @@ func handleUse(args []string) {
 // Displays info from module's info file
 func handleInfo() {
 	if currentModule == "" {
-		fmt.Println("No module selected.")
+		fmt.Println(Yellow + "[!] No module selected." + Reset)
 		return
 	}
 
@@ -187,7 +198,7 @@ func handleInfo() {
 
 	infoContents, err := os.ReadFile(infoPath)
 	if err != nil {
-		fmt.Println("Error reading info file:", err)
+		fmt.Println(Red + "[Error] Error reading info file:" + err.Error() + Reset)
 	}
 
 	fmt.Println(string(infoContents))
@@ -197,7 +208,7 @@ func handleInfo() {
 // Executes the payload from the module
 func handleRun() {
 	if currentModule == "" {
-		fmt.Println("No module selected.")
+		fmt.Println(Yellow + "[!] No module selected." + Reset)
 		return
 	}
 
@@ -205,7 +216,7 @@ func handleRun() {
 
 	// Make sure file exists
 	if _, err := os.Stat(payloadPath); os.IsNotExist(err) {
-		fmt.Printf("No 'run.sh' script found for module: %s\n", currentModule)
+		fmt.Printf(Red+"[Error] No 'run.sh' script found for module: %s\n"+Reset, currentModule)
 		return
 	}
 
@@ -246,7 +257,7 @@ func handleRun() {
 	// Execute it
 	err := cmd.Run()
 	if err != nil {
-		fmt.Println("Error running module:", err)
+		fmt.Println(Red + "[Error] Error running module:" + err.Error() + Reset)
 	}
 
 }
@@ -256,7 +267,7 @@ func handleSet(args []string) {
 
 	// Ensure a module is selected
 	if currentModule == "" {
-		fmt.Println("No module selected.")
+		fmt.Println(Yellow + "[!] No module selected." + Reset)
 		return
 	}
 
@@ -282,7 +293,7 @@ func handleSet(args []string) {
 // Displays config options
 func handleShow() {
 	if currentModule == "" {
-		fmt.Println("No module selected.")
+		fmt.Println(Yellow + "[!] No module selected." + Reset)
 		return
 	}
 
@@ -297,7 +308,7 @@ func handleShow() {
 
 	// Exit early if there's nothing to show
 	if len(expected) == 0 && len(current) == 0 {
-		fmt.Println("No config information found for this module.")
+		fmt.Println(Yellow + "[!] No config information found for this module." + Reset)
 		return
 	}
 
@@ -365,6 +376,13 @@ func handleShow() {
 // Resets the currentModule
 func handleReturn() {
 	currentModule = ""
+}
+
+// Displays available modules as a tree
+func handleTree() {
+	basePath := "modules"
+	fmt.Println("Module tree:")
+	printTree(basePath, "", true)
 }
 
 // === Utility Functions ===
@@ -469,4 +487,64 @@ func parseModuleConfig(configPath string) (map[string]ConfigEntry, []string) {
 	}
 
 	return configMap, orderedKeys
+}
+
+// Prints a tree of directory recursively
+func printTree(path string, prefix string, isLast bool) {
+
+	// Get the contents of the current directory path
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		fmt.Println(prefix + "└── (error reading)")
+		return
+	}
+
+	// Only get the directories
+	dirs := []fs.DirEntry{}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry)
+		}
+	}
+
+	// Sort all entries
+	sort.Slice(dirs, func(i, j int) bool {
+		return dirs[i].Name() < dirs[j].Name()
+	})
+
+	for i, entry := range dirs {
+		isFinal := i == len(dirs)-1
+		connector := "├── "
+		nextPrefix := prefix + "│   "
+		if isFinal {
+			connector = "└── "
+			nextPrefix = prefix + "    "
+		}
+
+		fmt.Println(prefix + connector + entry.Name())
+
+		// Build full path to check what's inside
+		fullPath := filepath.Join(path, entry.Name())
+
+		// Check if this is a module folder
+		if isModuleFolder(fullPath) {
+			continue //Is a module folder so don't go into it
+		}
+
+		// Recursive
+		printTree(fullPath, nextPrefix, isFinal)
+
+	}
+
+}
+
+func isModuleFolder(path string) bool {
+	files := []string{"run.sh", "run", "info", "config"}
+	// Checks if path has module files
+	for _, f := range files {
+		if fileExists(filepath.Join(path, f)) {
+			return true
+		}
+	}
+	return false
 }
