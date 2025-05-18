@@ -1,0 +1,3 @@
+This runs through the entire file system and runs the touch command on every file it has access to in order to hide modification.
+
+This is very noisy to any EDR.

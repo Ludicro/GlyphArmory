@@ -1,2 +1,2 @@
-RHOST: Target IP address
-RPORT: Listening port for reverse shell
+RHOST:0.0.0.0:Target IP address
+RPORT:4444:Listening port for reverse shell
