@@ -1,0 +1,10 @@
+This module is to demonstrate functionality and guide on how to create your own. 
+
+Modules are determined by seeing if the folder contains this `info` file.
+
+Each module is run with a `run.sh` script. In future versions, this will be made to be more generic and support other executable types.
+
+Modules may also have a `config` file to set variables used in the script. When designing modules, they are read as:
+<VARIABLE>:<DEFAULT_VALUE>:<DESCRIPTION>
+
+The description is optional, but recommended.
