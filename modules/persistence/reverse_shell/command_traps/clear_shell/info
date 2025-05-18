@@ -1,0 +1,5 @@
+Hooks a reverse shell from the local machine to RHOST along RPORT.
+
+Overwrites the original clear command with one that calls a reverse shell then the original clear. 
+
+Original clear command is rewritten to .clear.real
