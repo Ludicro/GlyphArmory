@@ -62,6 +62,9 @@ func main() {
 	fmt.Println("              zzzzzzz        zzzzzzz              ")
 	fmt.Println("                  zzzzzzzzzzzzzz                  " + Reset)
 
+	fmt.Println(Yellow + "NOTICE: Usage of this tool is for ethical and permitted operations only.\n" +
+		"        Do not use this on systems you do not own!" + Reset)
+
 	fmt.Println("Welcome to Glyph Armory. Type 'help' to get started or 'exit' to quit.")
 
 	// Build autocompleter from known modules
@@ -80,13 +83,16 @@ func main() {
 	// Root completer
 	// Uses readline to autocomplete available commands across the entire tool
 	completer := readline.NewPrefixCompleter(
+		// Module Commands
 		readline.PcItem("use", moduleSuggestions...),
-		readline.PcItem("modules"),
+		readline.PcItem("return"),
 		readline.PcItem("info"),
-		readline.PcItem("run"),
 		readline.PcItem("set"),
 		readline.PcItem("show"),
-		readline.PcItem("return"),
+		readline.PcItem("run"),
+
+		//General commands
+		readline.PcItem("modules"),
 		readline.PcItem("tree"),
 		readline.PcItem("help"),
 		readline.PcItem("exit"),
@@ -171,12 +177,12 @@ func main() {
 func handleHelp() {
 	fmt.Println("Available commands:")
 	fmt.Println("  use <module>   		 Load a module")
-	fmt.Println("  modules        		 Displays available modules")
+	fmt.Println("  return         		 Clear the selected module")
 	fmt.Println("  info           		 Displays information on currently selected module")
-	fmt.Println("  run            		 Deploys the selected script")
 	fmt.Println("  set <key> <value>     Sets a config option")
 	fmt.Println("  show           		 Displays current config")
-	fmt.Println("  return         		 Clear the selected module")
+	fmt.Println("  run            		 Deploys the selected script")
+	fmt.Println("  modules        		 Displays available modules")
 	fmt.Println("  tree                  Displays a tree view of all available modules")
 	fmt.Println("  help           		 Show this help message")
 	fmt.Println("  exit           		 Exit the shell")
