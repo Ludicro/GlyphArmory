@@ -1,0 +1,3 @@
+Removes the effects from the persistence/reverse_shell/command_traps/cd_shell script.
+
+Searches bash.bashrc for our signature and removes it.
