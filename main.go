@@ -2,6 +2,8 @@ package main
 
 import (
 	// Read input line by line
+	"bytes"
+	"embed"
 	"fmt" // Printing to terminal
 	"io"
 	"os" // Access to stdin and exit
@@ -14,6 +16,11 @@ import (
 
 	"github.com/chzyer/readline"
 )
+
+// Embed modules
+
+//go:embed modules/**
+var embeddedModules embed.FS
 
 const (
 	Green  = "\033[32m"
@@ -66,6 +73,8 @@ func main() {
 		"        Do not use this on systems you do not own!" + Reset)
 
 	fmt.Println("Welcome to Glyph Armory. Type 'help' to get started or 'exit' to quit.")
+
+	//debugEmbeddedFiles()
 
 	// Build autocompleter from known modules
 	modules, err := getAvailableModules()
@@ -225,7 +234,7 @@ func handleInfo() {
 
 	infoPath := filepath.Join("modules", currentModule, "info")
 
-	infoContents, err := os.ReadFile(infoPath)
+	infoContents, err := embeddedModules.ReadFile(infoPath)
 	if err != nil {
 		fmt.Println(Red + "[Error] Error reading info file:" + err.Error() + Reset)
 	}
@@ -352,26 +361,23 @@ func handleRun() {
 		return
 	}
 
-	payloadPath := filepath.Join("modules", currentModule, "run.sh")
+	// Build embedded path to run.sh
+	scriptPath := filepath.Join("modules", currentModule, "run.sh")
 
-	// Make sure file exists
-	if _, err := os.Stat(payloadPath); os.IsNotExist(err) {
-		fmt.Printf(Red+"[Error] No 'run.sh' script found for module: %s\n"+Reset, currentModule)
+	// Read script directly from embedded FS
+	scriptData, err := embeddedModules.ReadFile(scriptPath)
+	if err != nil {
+		fmt.Printf(Red+"[Error] Could not read embedded script: %s\n"+Reset, err.Error())
 		return
 	}
 
-	// Load config
+	// Parse config file to load variables
 	configPath := filepath.Join("modules", currentModule, "config")
 	expected, _ := parseModuleConfig(configPath)
-
-	// Build env
-	env := os.Environ()
-
-	// Get current config values for module
 	current := moduleConfigs[currentModule]
 
-	// Inject each expected variable
-	// Inject each expected variable
+	// Build env from defaults and overrides
+	env := os.Environ()
 	for key, entry := range expected {
 		val := current[key]
 		if val == "" {
@@ -379,27 +385,25 @@ func handleRun() {
 		}
 		env = append(env, fmt.Sprintf("%s=%s", key, val))
 	}
-
-	// Add any custom (unexpected) keys
 	for key, val := range current {
 		if _, found := expected[key]; !found {
 			env = append(env, fmt.Sprintf("%s=%s", key, val))
 		}
 	}
 
-	// Set up the command to run
-	cmd := exec.Command("bash", payloadPath)
+	// Create command to run bash
+	//	Pipe script into stdin
+	cmd := exec.Command("bash")
+	cmd.Stdin = bytes.NewReader(scriptData) //Simulate "bash < run.sh"
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	cmd.Env = env // inject the final env
+	cmd.Stdin = bytes.NewReader(scriptData) // required again for clarity
+	cmd.Env = env
 
-	// Execute it
-	err := cmd.Run()
-	if err != nil {
-		fmt.Println(Red + "[Error] Error running module:" + err.Error() + Reset)
+	// Execute embedded script
+	if err := cmd.Run(); err != nil {
+		fmt.Println(Red + "[Error] Script execution failed: " + err.Error() + Reset)
 	}
-
 }
 
 // Displays available modules as a tree
@@ -499,7 +503,7 @@ func parseModuleConfig(configPath string) (map[string]ConfigEntry, []string) {
 	}
 
 	// Read raw information
-	rawContent, err := os.ReadFile(configPath)
+	rawContent, err := embeddedModules.ReadFile(configPath)
 	if err != nil {
 		return configMap, orderedKeys
 	}
@@ -543,7 +547,7 @@ func parseModuleConfig(configPath string) (map[string]ConfigEntry, []string) {
 func printTree(path string, prefix string) {
 
 	// Get the contents of the current directory path
-	entries, err := os.ReadDir(path)
+	entries, err := embeddedModules.ReadDir(path)
 	if err != nil {
 		fmt.Println(prefix + "└── (error reading)")
 		return
@@ -588,6 +592,7 @@ func printTree(path string, prefix string) {
 
 }
 
+// Function to determine if a folder is a module or directory
 func isModuleFolder(path string) bool {
 	files := []string{"run.sh", "run", "info", "config"}
 	// Checks if path has module files
@@ -597,4 +602,13 @@ func isModuleFolder(path string) bool {
 		}
 	}
 	return false
+}
+
+// Function to verify files embedded correctly
+func debugEmbeddedFiles() {
+	fmt.Println(Yellow + "[DEBUG] Listing embedded module files..." + Reset)
+	files, _ := fs.Glob(embeddedModules, "modules/**")
+	for _, f := range files {
+		fmt.Println(" -", f)
+	}
 }
