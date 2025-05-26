@@ -428,7 +428,11 @@ func handleHelp() {
 
 // Clears the terminal
 func handleClear() {
+	cmd := exec.Command("clear") // Should work on most unix
 
+	// Redirect output so it actually clears this terminal
+	cmd.Stdout = os.Stdout
+	cmd.Run()
 }
 
 // === Utility Functions ===
