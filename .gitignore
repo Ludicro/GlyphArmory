@@ -1,3 +1,4 @@
 go.sum
 modules/test/
 glyph_armory
+builder.sh
