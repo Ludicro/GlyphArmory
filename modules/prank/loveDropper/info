@@ -1,0 +1,3 @@
+Adds a message after every command using PROMPT_COMMAND,
+
+Forces reload with pkill -HUP bash.

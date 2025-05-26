@@ -95,6 +95,7 @@ func main() {
 		readline.PcItem("modules"),
 		readline.PcItem("tree"),
 		readline.PcItem("help"),
+		readline.PcItem("clear"),
 		readline.PcItem("exit"),
 	)
 
@@ -162,6 +163,8 @@ func main() {
 			handleTree()
 		case "help":
 			handleHelp()
+		case "clear":
+			handleClear()
 		case "exit":
 			fmt.Println(Yellow + "[!] Exiting GlyphArmory..." + Reset)
 			os.Exit(0)
@@ -172,21 +175,6 @@ func main() {
 }
 
 // === Console Command Functions ===
-
-// Prints the help statements
-func handleHelp() {
-	fmt.Println("Available commands:")
-	fmt.Println("  use <module>   		 Load a module")
-	fmt.Println("  return         		 Clear the selected module")
-	fmt.Println("  info           		 Displays information on currently selected module")
-	fmt.Println("  set <key> <value>     Sets a config option")
-	fmt.Println("  show           		 Displays current config")
-	fmt.Println("  run            		 Deploys the selected script")
-	fmt.Println("  modules        		 Displays available modules")
-	fmt.Println("  tree                  Displays a tree view of all available modules")
-	fmt.Println("  help           		 Show this help message")
-	fmt.Println("  exit           		 Exit the shell")
-}
 
 // Sets the module to be used
 func handleUse(args []string) {
@@ -223,6 +211,11 @@ func handleUse(args []string) {
 	currentModule = requested
 }
 
+// Resets the currentModule
+func handleReturn() {
+	currentModule = ""
+}
+
 // Displays info from module's info file
 func handleInfo() {
 	if currentModule == "" {
@@ -241,63 +234,6 @@ func handleInfo() {
 
 }
 
-// Executes the payload from the module
-func handleRun() {
-	if currentModule == "" {
-		fmt.Println(Yellow + "[!] No module selected." + Reset)
-		return
-	}
-
-	payloadPath := filepath.Join("modules", currentModule, "run.sh")
-
-	// Make sure file exists
-	if _, err := os.Stat(payloadPath); os.IsNotExist(err) {
-		fmt.Printf(Red+"[Error] No 'run.sh' script found for module: %s\n"+Reset, currentModule)
-		return
-	}
-
-	// Load config
-	configPath := filepath.Join("modules", currentModule, "config")
-	expected, _ := parseModuleConfig(configPath)
-
-	// Build env
-	env := os.Environ()
-
-	// Get current config values for module
-	current := moduleConfigs[currentModule]
-
-	// Inject each expected variable
-	// Inject each expected variable
-	for key, entry := range expected {
-		val := current[key]
-		if val == "" {
-			val = entry.Default
-		}
-		env = append(env, fmt.Sprintf("%s=%s", key, val))
-	}
-
-	// Add any custom (unexpected) keys
-	for key, val := range current {
-		if _, found := expected[key]; !found {
-			env = append(env, fmt.Sprintf("%s=%s", key, val))
-		}
-	}
-
-	// Set up the command to run
-	cmd := exec.Command("bash", payloadPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	cmd.Env = env // inject the final env
-
-	// Execute it
-	err := cmd.Run()
-	if err != nil {
-		fmt.Println(Red + "[Error] Error running module:" + err.Error() + Reset)
-	}
-
-}
-
 // Sets a config option
 func handleSet(args []string) {
 
@@ -308,7 +244,7 @@ func handleSet(args []string) {
 	}
 
 	// Must provide a key and value
-	if len(args) != 2 {
+	if len(args) < 2 {
 		fmt.Println("Usage: set <key> <value>")
 		return
 	}
@@ -409,9 +345,61 @@ func handleShow() {
 	}
 }
 
-// Resets the currentModule
-func handleReturn() {
-	currentModule = ""
+// Executes the payload from the module
+func handleRun() {
+	if currentModule == "" {
+		fmt.Println(Yellow + "[!] No module selected." + Reset)
+		return
+	}
+
+	payloadPath := filepath.Join("modules", currentModule, "run.sh")
+
+	// Make sure file exists
+	if _, err := os.Stat(payloadPath); os.IsNotExist(err) {
+		fmt.Printf(Red+"[Error] No 'run.sh' script found for module: %s\n"+Reset, currentModule)
+		return
+	}
+
+	// Load config
+	configPath := filepath.Join("modules", currentModule, "config")
+	expected, _ := parseModuleConfig(configPath)
+
+	// Build env
+	env := os.Environ()
+
+	// Get current config values for module
+	current := moduleConfigs[currentModule]
+
+	// Inject each expected variable
+	// Inject each expected variable
+	for key, entry := range expected {
+		val := current[key]
+		if val == "" {
+			val = entry.Default
+		}
+		env = append(env, fmt.Sprintf("%s=%s", key, val))
+	}
+
+	// Add any custom (unexpected) keys
+	for key, val := range current {
+		if _, found := expected[key]; !found {
+			env = append(env, fmt.Sprintf("%s=%s", key, val))
+		}
+	}
+
+	// Set up the command to run
+	cmd := exec.Command("bash", payloadPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Env = env // inject the final env
+
+	// Execute it
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println(Red + "[Error] Error running module:" + err.Error() + Reset)
+	}
+
 }
 
 // Displays available modules as a tree
@@ -419,6 +407,28 @@ func handleTree() {
 	basePath := "modules"
 	fmt.Println("Module tree:")
 	printTree(basePath, "")
+}
+
+// Prints the help statements
+func handleHelp() {
+	fmt.Println("Available commands:")
+
+	fmt.Printf("  %-24s %s\n", "use <module>", "Load a module")
+	fmt.Printf("  %-24s %s\n", "return", "Clear the selected module")
+	fmt.Printf("  %-24s %s\n", "info", "Displays information on currently selected module")
+	fmt.Printf("  %-24s %s\n", "set <key> <value>", "Sets a config option")
+	fmt.Printf("  %-24s %s\n", "show", "Displays current config")
+	fmt.Printf("  %-24s %s\n", "run", "Deploys the selected script")
+	fmt.Printf("  %-24s %s\n", "modules", "Displays available modules")
+	fmt.Printf("  %-24s %s\n", "tree", "Displays a tree view of all available modules")
+	fmt.Printf("  %-24s %s\n", "help", "Show this help message")
+	fmt.Printf("  %-24s %s\n", "clear", "Clear the terminal")
+	fmt.Printf("  %-24s %s\n", "exit", "Exit the shell")
+}
+
+// Clears the terminal
+func handleClear() {
+
 }
 
 // === Utility Functions ===
