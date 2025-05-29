@@ -446,23 +446,22 @@ func getAvailableModules() ([]string, error) {
 	var modules []string
 
 	// Recursively get modules and directories
-	err := filepath.WalkDir("modules", func(path string, directory fs.DirEntry, err error) error {
+	err := fs.WalkDir(embeddedModules, "modules", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err // Skip unreadable
 		}
 
-		// Currently directories
-		if directory.IsDir() {
+		if d.IsDir() {
 
-			// Check if it contains an info file
+			// Check for embedded info file in the directory
 			infoPath := filepath.Join(path, "info")
 
-			if fileExists(infoPath) {
-				// Strip "modules/"
+			if fileExistsEmbedded(infoPath) {
 				trimmed := strings.TrimPrefix(path, "modules/")
-				modules = append(modules, trimmed)
+				if trimmed != "" {
+					modules = append(modules, trimmed)
+				}
 			}
-
 		}
 		return nil
 	})
@@ -484,21 +483,13 @@ func buildPrompt() string {
 	return Green + "[GlyphArmory] > " + Reset
 }
 
-// Verifies a file exists when given the path
-// Returns true if file is found
-// Returns false if file is NOT found
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
 // Gets the config information from config file in module
 func parseModuleConfig(configPath string) (map[string]ConfigEntry, []string) {
 	configMap := make(map[string]ConfigEntry)
 	orderedKeys := []string{}
 
 	// Skip if file doesn't exist
-	if !fileExists(configPath) {
+	if !fileExistsEmbedded(configPath) {
 		return configMap, orderedKeys
 	}
 
@@ -597,11 +588,23 @@ func isModuleFolder(path string) bool {
 	files := []string{"run.sh", "run", "info", "config"}
 	// Checks if path has module files
 	for _, f := range files {
-		if fileExists(filepath.Join(path, f)) {
+		if fileExistsEmbedded(filepath.Join(path, f)) {
 			return true
 		}
 	}
 	return false
+}
+
+// Detect embedded files
+// Returns true if file is found
+// Returns false if file is NOT found
+func fileExistsEmbedded(path string) bool {
+	f, err := embeddedModules.Open(path)
+	if err != nil {
+		return false
+	}
+	f.Close()
+	return true
 }
 
 // Function to verify files embedded correctly
