@@ -74,7 +74,7 @@ func main() {
 
 	fmt.Println("Welcome to Glyph Armory. Type 'help' to get started or 'exit' to quit.")
 
-	//debugEmbeddedFiles()
+	debugEmbeddedFiles()
 
 	// Build autocompleter from known modules
 	modules, err := getAvailableModules()
@@ -609,9 +609,13 @@ func fileExistsEmbedded(path string) bool {
 
 // Function to verify files embedded correctly
 func debugEmbeddedFiles() {
-	fmt.Println(Yellow + "[DEBUG] Listing embedded module files..." + Reset)
+	fmt.Println(Yellow + "[DEBUG] Loading embedded module files..." + Reset)
 	files, _ := fs.Glob(embeddedModules, "modules/**")
+	numModules := 0
 	for _, f := range files {
-		fmt.Println(" -", f)
+		numModules++
+		//fmt.Println(" -", f)
+		_ = f // Keeps f from "being unused"
 	}
+	fmt.Println(Yellow+" - Successfully loaded", numModules, "modules."+Reset)
 }
